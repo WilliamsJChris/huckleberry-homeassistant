@@ -625,7 +625,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             start_time=dt_util.now(),
             total_amount=cast(float, call.data["total_amount"]),
             duration=duration_seconds,
-            units=_string_value(call.data.get("units")) or "ml",
             units=_bottle_units_value(call.data.get("units")),
         )
 
