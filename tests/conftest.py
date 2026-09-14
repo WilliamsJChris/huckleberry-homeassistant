@@ -98,6 +98,7 @@ def _build_mock_api(
     mock.log_growth = AsyncMock()
     mock.log_bottle = AsyncMock()
     mock.log_pump = AsyncMock()
+    mock.log_activity = AsyncMock()
     mock.log_solids = AsyncMock()
 
     def _mock_create_solids_custom_food(child_uid: str, name: str, image: str = "") -> FirebaseCustomFoodTypeDocument:
