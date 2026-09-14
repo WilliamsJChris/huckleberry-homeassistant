@@ -257,6 +257,21 @@ async def test_services(hass: HomeAssistant, mock_huckleberry_api):
         units="ml",
     )
 
+    # Test log_pump
+    await hass.services.async_call(
+        DOMAIN,
+        "log_pump",
+        {"device_id": device.id, "total_amount": 150.0, "duration": 15, "duration_unit": "minutes", "units": "ml"},
+        blocking=True,
+    )
+    mock_huckleberry_api.log_pump.assert_called_with(
+        "test_child_uid",
+        start_time=ANY,
+        total_amount=150.0,
+        duration=900,
+        units="ml",
+    )
+
     # Configure mock food catalogs
     mock_huckleberry_api.list_solids_curated_foods.return_value = [
         FirebaseCuratedFoodDocument(

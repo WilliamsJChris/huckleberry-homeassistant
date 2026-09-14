@@ -626,6 +626,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             total_amount=cast(float, call.data["total_amount"]),
             duration=duration_seconds,
             units=_string_value(call.data.get("units")) or "ml",
+            units=_bottle_units_value(call.data.get("units")),
         )
 
     async def handle_log_solids(call: ServiceCall) -> None:
