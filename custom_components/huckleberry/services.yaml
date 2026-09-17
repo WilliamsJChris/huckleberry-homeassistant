@@ -660,6 +660,50 @@ log_bottle:
             - ml
             - oz
 
+log_activity:
+  name: Log Activity
+  description: Log an activity session (such as tummy time, bath, story time, and more).
+  fields:
+    device_id:
+      name: Child device
+      description: Select child device
+      required: true
+      selector:
+        device:
+          integration: huckleberry
+    mode:
+      name: Activity type
+      description: Type of activity
+      required: true
+      selector:
+        select:
+          options:
+            - bath
+            - brushTeeth
+            - indoorPlay
+            - outdoorPlay
+            - screenTime
+            - skinToSkin
+            - storyTime
+            - tummyTime
+    duration:
+      name: Duration
+      description: Duration of the activity in seconds
+      example: 600
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 86400
+          step: 1
+          mode: box
+    notes:
+      name: Notes
+      description: Optional notes about this activity
+      required: false
+      selector:
+        text:
+
 log_solids:
   name: Log Solids
   description: Log a solid food meal with one or more foods.

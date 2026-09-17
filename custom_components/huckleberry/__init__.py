@@ -22,6 +22,7 @@ from homeassistant.util import dt as dt_util
 
 from huckleberry_api import HuckleberryAPI
 from huckleberry_api.firebase_types import (
+    ActivityMode,
     BottleType,
     FeedSide,
     FirebaseChildDocument,
@@ -73,6 +74,7 @@ SOLIDS_REACTION_LABELS: Final[dict[str, SolidsReaction]] = {
     "allergic": "ALLERGIC",
 }
 SOLIDS_REACTION_OPTIONS: Final[tuple[str, ...]] = tuple(SOLIDS_REACTION_LABELS)
+ACTIVITY_MODE_OPTIONS: Final[tuple[str, ...]] = tuple(get_args(ActivityMode))
 DiaperAmount = Literal["little", "medium", "big"]
 GrowthUnits = Literal["metric", "imperial"]
 BottleUnits = Literal["ml", "oz"]
@@ -377,6 +379,7 @@ def _build_service_method_schema(
     include_solids: bool = False,
     include_potty_fields: bool = False,
     include_pump: bool = False,
+    include_activity: bool = False,
 ) -> vol.Schema:
     """Create a service schema from the shared target fields."""
     schema: dict[object, object] = {
@@ -419,6 +422,10 @@ def _build_service_method_schema(
         schema[vol.Required("duration")] = vol.Coerce(int)
         schema[vol.Optional("duration_unit", default="minutes")] = vol.In(("minutes", "seconds"))
         schema[vol.Optional("units", default="ml")] = vol.In(("ml", "oz"))
+    if include_activity:
+        schema[vol.Required("mode")] = vol.In(ACTIVITY_MODE_OPTIONS)
+        schema[vol.Optional("duration")] = vol.Coerce(float)
+        schema[vol.Optional("notes")] = cv.string
 
     return vol.Schema(schema)
 
@@ -628,6 +635,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             units=_bottle_units_value(call.data.get("units")),
         )
 
+    async def handle_log_activity(call: ServiceCall) -> None:
+        await api_client.log_activity(
+            _target_child(call),
+            mode=cast(ActivityMode, call.data["mode"]),
+            start_time=dt_util.now(),
+            duration=cast(float | None, call.data.get("duration")),
+            notes=_string_value(call.data.get("notes")),
+        )
+
     async def handle_log_solids(call: ServiceCall) -> None:
         child_uid = _target_child(call)
         food_names = _solids_food_list(call.data.get("foods"))
@@ -688,6 +704,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "log_pump",
         handle_log_pump,
         schema=_build_service_method_schema(include_pump=True),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "log_activity",
+        handle_log_activity,
+        schema=_build_service_method_schema(include_activity=True),
     )
     hass.services.async_register(
         DOMAIN,
