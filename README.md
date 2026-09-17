@@ -13,6 +13,8 @@ This integration provides real-time baby tracking in Home Assistant by connectin
 - 💤 **Sleep Tracking**: Sensors, switches, and automation services
 - 🤱 **Nursing Tracking**: Left/right side tracking with switches and services
 - 🍼 **Bottle Feeding**: Log bottle feeds with amount and type
+- 🤱 **Pumping Tracking**: Track pumping sessions with duration and amount
+- 🧸 **Activity Tracking**: Log activities like tummy time, bath, and play
 - 🧷 **Diaper Changes**: Log pee, poo, both, or dry checks
 - 📏 **Growth Measurements**: Track weight, height, head circumference
 - 📅 **Calendar**: Historical events per child in HA's calendar view
@@ -49,6 +51,7 @@ This integration provides real-time baby tracking in Home Assistant by connectin
 - **Sensors**:
   - `sensor.{child_name}_sleep` - Sleep status (sleeping, paused, none)
   - `sensor.{child_name}_nursing` - Nursing status (nursing, paused, none)
+  - `sensor.{child_name}_pumping` - Pumping session status (active, paused, none)
   - `sensor.{child_name}_profile` - Child profile information
   - `sensor.{child_name}_growth` - Latest growth measurements
   - `sensor.{child_name}_bottle` - Last bottle feeding (time, amount, type)
@@ -87,8 +90,14 @@ All services support device selection for easy use in automations:
 ### Bottle Feeding
 - `huckleberry.log_bottle` - Log bottle feeding (formula or breastmilk) with amount in oz or ml
 
+### Pumping Tracking
+- `huckleberry.log_pump` - Log a pumping session with total amount and duration
+
 ### Solid Food Tracking
 - `huckleberry.log_solids` - Log a solid food meal with one or more foods, optional notes and reaction (LOVED/MEH/HATED/ALLERGIC)
+
+### Activity Tracking
+- `huckleberry.log_activity` - Log an activity session (bath, brushTeeth, indoorPlay, outdoorPlay, screenTime, skinToSkin, storyTime, tummyTime) with optional duration and notes
 
 ### Diaper Changes
 - `huckleberry.log_diaper_pee`
@@ -187,6 +196,41 @@ automation:
             - Yogurt
           notes: Lunch
           reaction: LOVED
+```
+
+### Log Pumping Session
+```yaml
+automation:
+  - alias: "Log Morning Pump"
+    trigger:
+      - platform: time
+        at: "08:00:00"
+    action:
+      - service: huckleberry.log_pump
+        target:
+          device_id: YOUR_DEVICE_ID
+        data:
+          total_amount: 150.0
+          duration: 15
+          duration_unit: minutes
+          units: ml
+```
+
+### Log Activity Session
+```yaml
+automation:
+  - alias: "Log Tummy Time"
+    trigger:
+      - platform: time
+        at: "10:30:00"
+    action:
+      - service: huckleberry.log_activity
+        target:
+          device_id: YOUR_DEVICE_ID
+        data:
+          mode: tummyTime
+          duration: 300
+          notes: Morning play mat session
 ```
 
 ## Device Actions
