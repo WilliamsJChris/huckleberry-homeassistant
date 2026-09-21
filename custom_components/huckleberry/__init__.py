@@ -189,7 +189,10 @@ def _string_value(value: object) -> str | None:
 
 def _event_start_time(call: ServiceCall) -> datetime:
     """Return the requested event time or the current time."""
-    return cast(datetime, call.data.get("start_time")) or dt_util.now()
+    start_time = call.data.get("start_time")
+    if isinstance(start_time, datetime):
+        return dt_util.as_local(start_time)
+    return dt_util.now()
 
 
 def _feed_side_value(value: object, *, default: FeedSide | None = None) -> FeedSide | None:
