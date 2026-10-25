@@ -96,6 +96,10 @@
         "device_id": {
           "name": "Child device",
           "description": "Select child device"
+        },
+        "start_time": {
+          "name": "Start time",
+          "description": "When the sleep started. Defaults to now. If a sleep session is already running, this moves its start."
         }
       }
     },
@@ -136,6 +140,40 @@
         "device_id": {
           "name": "Child device",
           "description": "Select child device"
+        },
+        "start_time": {
+          "name": "Start time",
+          "description": "Overrides the sleep start time for the saved interval."
+        },
+        "end_time": {
+          "name": "End time",
+          "description": "Overrides the sleep end time for the saved interval. Defaults to the paused end time or now."
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional notes about this sleep, replacing the timer's notes."
+        }
+      }
+    },
+    "log_sleep": {
+      "name": "Log sleep",
+      "description": "Log a finished sleep with its start and end time, without using the sleep timer.",
+      "fields": {
+        "device_id": {
+          "name": "Child device",
+          "description": "Select child device"
+        },
+        "start_time": {
+          "name": "Start time",
+          "description": "When the sleep started"
+        },
+        "end_time": {
+          "name": "End time",
+          "description": "When the sleep ended"
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional notes about this sleep"
         }
       }
     },
@@ -150,6 +188,10 @@
         "side": {
           "name": "Side",
           "description": "Which side to start on (left or right)"
+        },
+        "start_time": {
+          "name": "Start time",
+          "description": "When the nursing session started. Defaults to now. If a session is already running, this moves its start."
         }
       }
     },
@@ -204,6 +246,14 @@
         "device_id": {
           "name": "Child device",
           "description": "Select child device"
+        },
+        "start_time": {
+          "name": "Start time",
+          "description": "Overrides the session start time for the saved interval."
+        },
+        "end_time": {
+          "name": "End time",
+          "description": "Overrides the end of the current nursing segment. Defaults to now."
         }
       }
     },
@@ -478,8 +528,8 @@
           "description": "Select child device"
         },
         "start_time": {
-          "name": "Event date and time",
-          "description": "Date and time when the event occurred (defaults to now)"
+          "name": "Start time",
+          "description": "When the bottle feeding started. Defaults to now."
         },
         "amount": {
           "name": "Amount",
@@ -492,6 +542,10 @@
         "units": {
           "name": "Units",
           "description": "Measurement units for amount"
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional notes about this bottle feeding."
         }
       }
     },
@@ -548,6 +602,27 @@
     },
     "invalid_solids_foods": {
       "message": "Provide at least one non-empty food name in the foods list."
+    },
+    "invalid_sleep_interval": {
+      "message": "The sleep end time must be after its start time."
+    },
+    "invalid_sleep_start_time": {
+      "message": "The sleep start time cannot be in the future."
+    },
+    "invalid_sleep_end_time": {
+      "message": "The sleep end time cannot be in the future."
+    },
+    "invalid_nursing_interval": {
+      "message": "The nursing end time must be after its start time."
+    },
+    "invalid_nursing_start_time": {
+      "message": "The nursing start time cannot be in the future."
+    },
+    "invalid_nursing_end_time": {
+      "message": "The nursing end time cannot be in the future."
+    },
+    "invalid_timer_interval": {
+      "message": "The timer times are invalid: {error}"
     }
   },
   "entity": {
@@ -689,6 +764,23 @@
           }
         }
       },
+      "solids": {
+        "name": "Solids",
+        "state_attributes": {
+          "time": {
+            "name": "Time"
+          },
+          "foods": {
+            "name": "Foods"
+          },
+          "notes": {
+            "name": "Notes"
+          },
+          "reaction": {
+            "name": "Reaction"
+          }
+        }
+      },
       "diaper": {
         "name": "Diaper",
         "state_attributes": {
@@ -728,6 +820,29 @@
           },
           "head_unit": {
             "name": "Head unit"
+          }
+        }
+      },
+      "medication": {
+        "name": "Medication",
+        "state_attributes": {
+          "time": {
+            "name": "Time"
+          },
+          "medication_id": {
+            "name": "Medication ID"
+          },
+          "medication_name": {
+            "name": "Medication name"
+          },
+          "amount": {
+            "name": "Amount"
+          },
+          "units": {
+            "name": "Units"
+          },
+          "notes": {
+            "name": "Notes"
           }
         }
       },

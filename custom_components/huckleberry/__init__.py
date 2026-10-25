@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Final, Literal, TypedDict, cast, get_args
 
 import voluptuous as vol
@@ -32,6 +32,7 @@ from huckleberry_api.firebase_types import (
     FirebaseFeedDocumentData,
     FirebaseHealthDocumentData,
     FirebasePumpDocumentData,
+    FirebaseSleepDetails,
     FirebaseSleepDocumentData,
     FirebaseUserDocument,
     PooColor,
@@ -193,6 +194,18 @@ def _event_start_time(call: ServiceCall) -> datetime:
     if isinstance(start_time, datetime):
         return dt_util.as_local(start_time)
     return dt_util.now()
+
+
+def _local_datetime_value(value: object) -> datetime | None:
+    """Return a service datetime in the configured time zone."""
+    if not isinstance(value, datetime):
+        return None
+    return dt_util.as_local(value)
+
+
+def _utc_datetime(value: datetime) -> datetime:
+    """Return an aware datetime as a UTC instant for ordering comparisons."""
+    return value.astimezone(UTC)
 
 
 def _feed_side_value(value: object, *, default: FeedSide | None = None) -> FeedSide | None:
@@ -388,7 +401,10 @@ def _build_service_method_schema(
     include_potty_fields: bool = False,
     include_pump: bool = False,
     include_activity: bool = False,
+    include_sleep_interval: bool = False,
     include_start_time: bool = False,
+    include_timer_times: bool = False,
+    include_notes: bool = False,
 ) -> vol.Schema:
     """Create a service schema from the shared target fields."""
     schema: dict[object, object] = {
@@ -399,17 +415,26 @@ def _build_service_method_schema(
         schema[vol.Optional("start_time")] = cv.datetime
     if include_side:
         schema[vol.Optional("side")] = vol.In(FEED_SIDE_OPTIONS)
+    if include_start_time:
+        schema[vol.Optional("start_time")] = cv.datetime
+    if include_timer_times:
+        schema[vol.Optional("start_time")] = cv.datetime
+        schema[vol.Optional("end_time")] = cv.datetime
+    if include_notes:
+        schema[vol.Optional("notes")] = cv.string
     if include_growth:
         schema[vol.Optional("weight")] = vol.Coerce(float)
         schema[vol.Optional("height")] = vol.Coerce(float)
         schema[vol.Optional("head")] = vol.Coerce(float)
         schema[vol.Optional("units", default="metric")] = vol.In(("metric", "imperial"))
     if include_bottle:
+        schema[vol.Optional("start_time")] = cv.datetime
         schema[vol.Required("amount")] = vol.Coerce(float)
         schema[vol.Required("bottle_type")] = vol.In(
             BOTTLE_TYPE_OPTIONS + BOTTLE_TYPE_LEGACY_OPTIONS
         )
         schema[vol.Optional("units", default="ml")] = vol.In(("ml", "oz"))
+        schema[vol.Optional("notes")] = cv.string
     if include_diaper_fields:
         schema[vol.Optional("pee_amount")] = vol.In(("little", "medium", "big"))
         schema[vol.Optional("poo_amount")] = vol.In(("little", "medium", "big"))
@@ -436,6 +461,10 @@ def _build_service_method_schema(
     if include_activity:
         schema[vol.Required("mode")] = vol.In(ACTIVITY_MODE_OPTIONS)
         schema[vol.Optional("duration")] = vol.Coerce(float)
+        schema[vol.Optional("notes")] = cv.string
+    if include_sleep_interval:
+        schema[vol.Required("start_time")] = cv.datetime
+        schema[vol.Required("end_time")] = cv.datetime
         schema[vol.Optional("notes")] = cv.string
 
     return vol.Schema(schema)
@@ -488,7 +517,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return _get_child_uid_from_call(hass, call)
 
     async def handle_start_sleep(call: ServiceCall) -> None:
-        await api_client.start_sleep(_target_child(call))
+        start_time = _local_datetime_value(call.data.get("start_time"))
+        if start_time is not None and _utc_datetime(start_time) > _utc_datetime(dt_util.now()):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_sleep_start_time",
+            )
+        try:
+            await api_client.start_sleep(
+                _target_child(call),
+                start_time=start_time,
+            )
+        except ValueError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_timer_interval",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def handle_pause_sleep(call: ServiceCall) -> None:
         await api_client.pause_sleep(_target_child(call))
@@ -500,13 +545,98 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await api_client.cancel_sleep(_target_child(call))
 
     async def handle_complete_sleep(call: ServiceCall) -> None:
-        await api_client.complete_sleep(_target_child(call))
+        child_uid = _target_child(call)
+        start_time = _local_datetime_value(call.data.get("start_time"))
+        end_time = _local_datetime_value(call.data.get("end_time"))
+        now = dt_util.now()
+        if start_time is not None and _utc_datetime(start_time) > _utc_datetime(now):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_sleep_start_time",
+            )
+        if (
+            start_time is not None
+            and end_time is not None
+            and _utc_datetime(end_time) <= _utc_datetime(start_time)
+        ):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_sleep_interval",
+            )
+        if end_time is not None and _utc_datetime(end_time) > _utc_datetime(now):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_sleep_end_time",
+            )
+        details: FirebaseSleepDetails | None = None
+        if "notes" in call.data:
+            # Read the timer that is about to be completed, not coordinator
+            # state that may still describe a previous session.
+            sleep_status = await api_client.get_sleep(child_uid)
+            timer = sleep_status.timer if sleep_status is not None else None
+            timer_details = timer.details if timer is not None else None
+            notes = _string_value(call.data.get("notes")) or ""
+            details = (
+                timer_details.model_copy(update={"notes": notes})
+                if timer_details is not None
+                else FirebaseSleepDetails(notes=notes)
+            )
+        try:
+            await api_client.complete_sleep(
+                child_uid,
+                start_time=start_time,
+                end_time=end_time,
+                details=details,
+            )
+        except ValueError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_timer_interval",
+                translation_placeholders={"error": str(err)},
+            ) from err
+
+    async def handle_log_sleep(call: ServiceCall) -> None:
+        # Naive times are wall-clock times in the configured time zone. The API
+        # calls timestamp(), which would read a naive value in the host's zone.
+        start_time = dt_util.as_local(cast(datetime, call.data["start_time"]))
+        end_time = dt_util.as_local(cast(datetime, call.data["end_time"]))
+        if end_time <= start_time:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_sleep_interval",
+            )
+        if end_time > dt_util.now():
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_sleep_end_time",
+            )
+        notes = _string_value(call.data.get("notes"))
+        await api_client.log_sleep(
+            _target_child(call),
+            start_time=start_time,
+            end_time=end_time,
+            details=FirebaseSleepDetails(notes=notes) if notes else None,
+        )
 
     async def handle_start_nursing(call: ServiceCall) -> None:
-        await api_client.start_nursing(
-            _target_child(call),
-            _feed_side_value(call.data.get("side"), default="left") or "left",
-        )
+        start_time = _local_datetime_value(call.data.get("start_time"))
+        if start_time is not None and _utc_datetime(start_time) > _utc_datetime(dt_util.now()):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_nursing_start_time",
+            )
+        try:
+            await api_client.start_nursing(
+                _target_child(call),
+                _feed_side_value(call.data.get("side"), default="left") or "left",
+                start_time=start_time,
+            )
+        except ValueError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_timer_interval",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def handle_pause_nursing(call: ServiceCall) -> None:
         await api_client.pause_nursing(_target_child(call))
@@ -524,7 +654,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await api_client.cancel_nursing(_target_child(call))
 
     async def handle_complete_nursing(call: ServiceCall) -> None:
-        await api_client.complete_nursing(_target_child(call))
+        start_time = _local_datetime_value(call.data.get("start_time"))
+        end_time = _local_datetime_value(call.data.get("end_time"))
+        now = dt_util.now()
+        if start_time is not None and _utc_datetime(start_time) > _utc_datetime(now):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_nursing_start_time",
+            )
+        if (
+            start_time is not None
+            and end_time is not None
+            and _utc_datetime(end_time) <= _utc_datetime(start_time)
+        ):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_nursing_interval",
+            )
+        if end_time is not None and _utc_datetime(end_time) > _utc_datetime(now):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_nursing_end_time",
+            )
+        try:
+            await api_client.complete_nursing(
+                _target_child(call),
+                start_time=start_time,
+                end_time=end_time,
+            )
+        except ValueError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_timer_interval",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def handle_log_diaper_pee(call: ServiceCall) -> None:
         await api_client.log_diaper(
@@ -626,12 +789,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_request_refresh()
 
     async def handle_log_bottle(call: ServiceCall) -> None:
+        start_time = cast(datetime | None, call.data.get("start_time"))
         await api_client.log_bottle(
             _target_child(call),
             start_time=_event_start_time(call),
             amount=cast(float, call.data["amount"]),
             bottle_type=_api_bottle_type(_string_value(call.data.get("bottle_type"))),
             units=_bottle_units_value(call.data.get("units")),
+            notes=_string_value(call.data.get("notes")),
         )
 
     async def handle_log_pump(call: ServiceCall) -> None:
@@ -672,19 +837,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             reaction=_solids_reaction_value(call.data.get("reaction")),
         )
 
-    hass.services.async_register(DOMAIN, "start_sleep", handle_start_sleep, schema=SERVICE_CHILD_SCHEMA)
+    hass.services.async_register(
+        DOMAIN,
+        "start_sleep",
+        handle_start_sleep,
+        schema=_build_service_method_schema(include_start_time=True),
+    )
     hass.services.async_register(DOMAIN, "pause_sleep", handle_pause_sleep, schema=SERVICE_CHILD_SCHEMA)
     hass.services.async_register(DOMAIN, "resume_sleep", handle_resume_sleep, schema=SERVICE_CHILD_SCHEMA)
     hass.services.async_register(DOMAIN, "cancel_sleep", handle_cancel_sleep, schema=SERVICE_CHILD_SCHEMA)
-    hass.services.async_register(DOMAIN, "complete_sleep", handle_complete_sleep, schema=SERVICE_CHILD_SCHEMA)
+    hass.services.async_register(
+        DOMAIN,
+        "complete_sleep",
+        handle_complete_sleep,
+        schema=_build_service_method_schema(include_timer_times=True, include_notes=True),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "log_sleep",
+        handle_log_sleep,
+        schema=_build_service_method_schema(include_sleep_interval=True),
+    )
 
     nursing_schema = _build_service_method_schema(include_side=True)
-    hass.services.async_register(DOMAIN, "start_nursing", handle_start_nursing, schema=nursing_schema)
+    hass.services.async_register(
+        DOMAIN,
+        "start_nursing",
+        handle_start_nursing,
+        schema=_build_service_method_schema(include_side=True, include_start_time=True),
+    )
     hass.services.async_register(DOMAIN, "pause_nursing", handle_pause_nursing, schema=SERVICE_CHILD_SCHEMA)
     hass.services.async_register(DOMAIN, "resume_nursing", handle_resume_nursing, schema=nursing_schema)
     hass.services.async_register(DOMAIN, "switch_nursing_side", handle_switch_nursing_side, schema=SERVICE_CHILD_SCHEMA)
     hass.services.async_register(DOMAIN, "cancel_nursing", handle_cancel_nursing, schema=SERVICE_CHILD_SCHEMA)
-    hass.services.async_register(DOMAIN, "complete_nursing", handle_complete_nursing, schema=SERVICE_CHILD_SCHEMA)
+    hass.services.async_register(
+        DOMAIN,
+        "complete_nursing",
+        handle_complete_nursing,
+        schema=_build_service_method_schema(include_timer_times=True),
+    )
 
     diaper_schema = _build_service_method_schema(include_diaper_fields=True, include_start_time=True)
     hass.services.async_register(DOMAIN, "log_diaper_pee", handle_log_diaper_pee, schema=diaper_schema)

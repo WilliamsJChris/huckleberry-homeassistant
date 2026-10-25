@@ -9,6 +9,12 @@ start_sleep:
       selector:
         device:
           integration: huckleberry
+    start_time:
+      name: Start time
+      description: When the sleep started. Defaults to now. If a sleep session is already running, this moves its start.
+      required: false
+      selector:
+        datetime:
 pause_sleep:
   name: Pause Sleep
   description: Pause the active sleep session without completing it.
@@ -53,6 +59,55 @@ complete_sleep:
       selector:
         device:
           integration: huckleberry
+    start_time:
+      name: Start time
+      description: Overrides the sleep start time for the saved interval.
+      required: false
+      selector:
+        datetime:
+    end_time:
+      name: End time
+      description: Overrides the sleep end time for the saved interval. Defaults to the paused end time or now.
+      required: false
+      selector:
+        datetime:
+    notes:
+      name: Notes
+      description: Optional notes about this sleep, replacing the timer's notes.
+      required: false
+      selector:
+        text:
+log_sleep:
+  name: Log Sleep
+  description: Log a finished sleep with its start and end time, without using the sleep timer.
+  fields:
+    device_id:
+      name: Child device
+      description: Select child device
+      required: true
+      selector:
+        device:
+          integration: huckleberry
+    start_time:
+      name: Start time
+      description: When the sleep started
+      required: true
+      example: "2026-01-15 12:10:00"
+      selector:
+        datetime:
+    end_time:
+      name: End time
+      description: When the sleep ended
+      required: true
+      example: "2026-01-15 13:30:00"
+      selector:
+        datetime:
+    notes:
+      name: Notes
+      description: Optional notes about this sleep
+      required: false
+      selector:
+        text:
 
 start_nursing:
   name: Start Nursing
@@ -77,6 +132,12 @@ start_nursing:
           options:
             - left
             - right
+    start_time:
+      name: Start time
+      description: When the nursing session started. Defaults to now. If a session is already running, this moves its start.
+      required: false
+      selector:
+        datetime:
 
 pause_nursing:
   name: Pause Nursing
@@ -148,6 +209,18 @@ complete_nursing:
       selector:
         device:
           integration: huckleberry
+    start_time:
+      name: Start time
+      description: Overrides the session start time for the saved interval.
+      required: false
+      selector:
+        datetime:
+    end_time:
+      name: End time
+      description: Overrides the end of the current nursing segment. Defaults to now.
+      required: false
+      selector:
+        datetime:
 
 log_diaper_pee:
   name: Log Diaper - Pee
@@ -671,8 +744,8 @@ log_bottle:
         device:
           integration: huckleberry
     start_time:
-      name: Event date and time
-      description: Date and time when the event occurred (defaults to now)
+      name: Start time
+      description: When the bottle feeding started. Defaults to now.
       required: false
       selector:
         datetime:
@@ -713,6 +786,12 @@ log_bottle:
           options:
             - ml
             - oz
+    notes:
+      name: Notes
+      description: Optional notes about this bottle feeding.
+      required: false
+      selector:
+        text:
 
 log_activity:
   name: Log Activity

@@ -85,6 +85,7 @@ def _build_mock_api(
     mock.resume_sleep = AsyncMock()
     mock.cancel_sleep = AsyncMock()
     mock.complete_sleep = AsyncMock()
+    mock.log_sleep = AsyncMock()
 
     mock.start_nursing = AsyncMock()
     mock.pause_nursing = AsyncMock()
@@ -121,6 +122,8 @@ def _build_mock_api(
     mock.list_feed_intervals = AsyncMock(return_value=[])
     mock.list_diaper_intervals = AsyncMock(return_value=[])
     mock.list_health_entries = AsyncMock(return_value=[])
+    mock.list_pump_intervals = AsyncMock(return_value=[])
+    mock.list_activity_intervals = AsyncMock(return_value=[])
 
     mock.user_uid = "test_user_uid"
 
