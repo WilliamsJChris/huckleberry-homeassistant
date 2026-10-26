@@ -415,8 +415,6 @@ def _build_service_method_schema(
         schema[vol.Optional("start_time")] = cv.datetime
     if include_side:
         schema[vol.Optional("side")] = vol.In(FEED_SIDE_OPTIONS)
-    if include_start_time:
-        schema[vol.Optional("start_time")] = cv.datetime
     if include_timer_times:
         schema[vol.Optional("start_time")] = cv.datetime
         schema[vol.Optional("end_time")] = cv.datetime

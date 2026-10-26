@@ -337,7 +337,7 @@ async def test_services(hass: HomeAssistant, mock_huckleberry_api):
     )
     mock_huckleberry_api.log_bottle.assert_called_with(
         "test_child_uid",
-        start_time=ANY,
+        start_time=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
         amount=90.0,
         bottle_type="Formula",
         units="ml",
