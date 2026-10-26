@@ -789,7 +789,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_request_refresh()
 
     async def handle_log_bottle(call: ServiceCall) -> None:
-        start_time = cast(datetime | None, call.data.get("start_time"))
         await api_client.log_bottle(
             _target_child(call),
             start_time=_event_start_time(call),

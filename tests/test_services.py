@@ -278,7 +278,7 @@ async def test_services(hass: HomeAssistant, mock_huckleberry_api):
     )
     mock_huckleberry_api.log_bottle.assert_called_with(
         "test_child_uid",
-        start_time=ANY,
+        start_time=event_time,
         amount=4.0,
         bottle_type="Formula",
         units="oz",
@@ -302,7 +302,7 @@ async def test_services(hass: HomeAssistant, mock_huckleberry_api):
     )
     mock_huckleberry_api.log_bottle.assert_called_with(
         "test_child_uid",
-        start_time=ANY,
+        start_time=local_event_time,
         amount=4.0,
         bottle_type="Formula",
         units="oz",
