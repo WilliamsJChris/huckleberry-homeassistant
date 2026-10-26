@@ -54,7 +54,9 @@ This integration provides real-time baby tracking in Home Assistant by connectin
   - `sensor.{child_name}_pumping` - Pumping session status (active, paused, none)
   - `sensor.{child_name}_profile` - Child profile information
   - `sensor.{child_name}_growth` - Latest growth measurements
+  - `sensor.{child_name}_medication` - Last medication dose (name, amount, units, and notes)
   - `sensor.{child_name}_bottle` - Last bottle feeding (time, amount, type)
+  - `sensor.{child_name}_solids` - Last solid meal timestamp, with `time`, `foods` as a list of names, optional `notes`, and `reaction` (LOVED/MEH/HATED/ALLERGIC). Updates from the app and `huckleberry.log_solids`.
   - `sensor.{child_name}_diaper` - Last diaper change
 
 - **Switches** (3):
@@ -63,7 +65,7 @@ This integration provides real-time baby tracking in Home Assistant by connectin
   - `switch.{child_name}_nursing_right` - Right side nursing
 
 - **Calendar** (1):
-  - `calendar.{child_name}_events` - All historical events (sleep, nursing, diaper, growth)
+  - `calendar.{child_name}_events` - All historical events (sleep, feeds, diapers, potty, health, pumping, activities)
 
 ### Global:
 - `sensor.huckleberry_children` - Number of children
@@ -73,19 +75,20 @@ This integration provides real-time baby tracking in Home Assistant by connectin
 All services support device selection for easy use in automations:
 
 ### Sleep Tracking
-- `huckleberry.start_sleep`
+- `huckleberry.start_sleep` - Start the sleep timer
 - `huckleberry.pause_sleep`
 - `huckleberry.resume_sleep`
 - `huckleberry.cancel_sleep`
-- `huckleberry.complete_sleep`
+- `huckleberry.complete_sleep` - Complete the sleep timer
+- `huckleberry.log_sleep` - Log a finished sleep with its start and end time, without using the sleep timer. Times without a UTC offset are read in Home Assistant's time zone.
 
 ### Nursing Tracking
-- `huckleberry.start_nursing`
+- `huckleberry.start_nursing` - Start nursing
 - `huckleberry.pause_nursing`
 - `huckleberry.resume_nursing`
 - `huckleberry.switch_nursing_side`
 - `huckleberry.cancel_nursing`
-- `huckleberry.complete_nursing`
+- `huckleberry.complete_nursing` - Complete nursing
 
 ### Bottle Feeding
 - `huckleberry.log_bottle` - Log bottle feeding (formula or breastmilk) with amount in oz or ml
@@ -112,10 +115,12 @@ All services support device selection for easy use in automations:
 
 Each child gets a calendar entity that displays all historical events:
 
-- **💤 Sleep events**: Shows duration and timing of all sleep sessions
-- **🍼 Feeding events**: Shows duration, left/right side information
-- **🩲 Diaper changes**: Shows type (pee/poo/both/dry) and details
-- **📏 Growth measurements**: Shows weight, height, head circumference
+- **💤 Sleep events**: Duration, notes, and any recorded sleep conditions or locations
+- **🍼 Feeding events**: Nursing duration with left/right sides, bottle amount and type, or solids foods and reaction, plus notes
+- **🩲 Diaper and potty events**: Type, amounts, color, consistency, diaper rash, potty result, and notes
+- **🩺 Health events**: Growth measurements with units, medication doses, temperature readings, and notes
+- **🍼 Pumping events**: Duration, left/right or total amounts, and notes
+- **🧸 Activity events**: Activity type, duration, and notes
 
 The calendar can be added to dashboards and used in automations. Events are automatically fetched when you view the calendar for a specific date range.
 
@@ -179,6 +184,8 @@ automation:
           units: ml
 ```
 
+Set `start_time` to log a feeding that happened earlier instead of now.
+
 ### Log Solid Food Meal
 ```yaml
 automation:
@@ -231,6 +238,23 @@ automation:
           mode: tummyTime
           duration: 300
           notes: Morning play mat session
+```
+
+### Log a Nap After the Fact
+```yaml
+automation:
+  - alias: "Log Nap From Helpers"
+    trigger:
+      - platform: state
+        entity_id: input_button.log_nap
+    action:
+      - service: huckleberry.log_sleep
+        target:
+          device_id: YOUR_DEVICE_ID
+        data:
+          start_time: "{{ states('input_datetime.nap_start') }}"
+          end_time: "{{ states('input_datetime.nap_end') }}"
+          notes: Daycare
 ```
 
 ## Device Actions
